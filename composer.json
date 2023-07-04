@@ -1,0 +1,25 @@
+{
+    "name": "1/travel-agency",
+    "type": "project",
+    "require": {
+        "fivetwo/dependency-injection": "dev-develop",
+      "ext-mysqli": "*"
+    },
+    "authors": [
+        {
+            "name": "BnnQ",
+            "email": "1v25fa94@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "1\\TravelAgency\\": "../TravelAgency",
+            "Models\\": "Models/",
+            "Pages\\": "Pages/",
+            "Services\\": "Services/",
+            "Exceptions\\": "Exceptions/",
+            "Utils\\": "Utils/"
+        }
+    }
+}
