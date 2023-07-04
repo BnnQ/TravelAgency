@@ -1,0 +1,24 @@
+@import "variables";
+.nav-item {
+  color: $primary;
+  padding: 0.6rem;
+  border-radius: 5px;
+  cursor: pointer;
+  text-decoration: none !important;
+  transition: background-color 0.5s;
+
+  &:hover {
+    @extend .active;
+  }
+
+}
+
+.nav-item.active {
+  color: $light;
+  background-color: $primary;
+}
+
+.nav-item.active a {
+  color: $light;
+  transition: color 0.3s;
+}
