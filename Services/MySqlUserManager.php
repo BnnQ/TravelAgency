@@ -4,6 +4,7 @@ namespace Services;
 
 use Exceptions\LoginAlreadyTakenException;
 use Exceptions\UserNotFoundException;
+use Exceptions\ValueInvalidationException;
 use Models\Entities\User;
 use Models\ValidationRule;
 use mysqli;
@@ -11,6 +12,7 @@ use QueryFailedException;
 use StatementPrepareFailedException;
 use Utils\MySqlUtils;
 require_once "Utils\CookieConstants.php";
+require_once "Utils\RoleConstants.php";
 require_once "Utils\Utils.php";
 
 class MySqlUserManager extends UserManagerBase
@@ -21,13 +23,30 @@ class MySqlUserManager extends UserManagerBase
     }
 
     /**
+     * @inheritDoc
+     */
+    public function getUsers(): array
+    {
+        $query = "SELECT Users.Id, Users.Login, Users.HashedPassword, Users.Email, Users.Discount, Users.Avatar, Users.LastAuthenticationToken, R.Name as RoleName FROM Users JOIN Roles R on R.Id = Users.RoleId";
+        $response = $this->context->query($query);
+
+        $users = [];
+        while ($row = $response->fetch_assoc()) {
+            $user = User::parseFromAssoc($row);
+            $users[] = $user;
+        }
+
+        return $users;
+    }
+
+    /**
      * @throws StatementPrepareFailedException
      * @throws QueryFailedException
      * @throws UserNotFoundException
      */
     public function getUser(string $login): User
     {
-        $query = "SELECT * FROM Users WHERE Login = ?";
+        $query = "SELECT Users.Id, Users.Login, Users.HashedPassword, Users.Email, Users.Discount, Users.Avatar, Users.LastAuthenticationToken, R.Name as RoleName FROM Users JOIN Roles R on R.Id = Users.RoleId AND Login = ?";
         $response = MySqlUtils::prepareAndGetResult($this->context, $query, 's', $login);
 
         if ($response->num_rows < 1)
@@ -40,12 +59,18 @@ class MySqlUserManager extends UserManagerBase
     }
 
     /**
+     * @param string $login
+     * @param string $password
+     * @param string $email
+     * @param string $roleName
+     * @param float $discount
+     * @param string|null $avatar
      * @throws StatementPrepareFailedException
      * @throws QueryFailedException
      * @throws LoginAlreadyTakenException
-     * @throws UserNotFoundException
+     * @throws ValueInvalidationException
      */
-    public function signUpUser(string $login, string $password, string $email): void
+    public function signUpUser(string $login, string $password, string $email, string $roleName = ROLE_User, float $discount = 0.0, ?string $avatar = null): void
     {
         #region Validating values
         $query = "SELECT * FROM Users WHERE Login = ?";
@@ -61,26 +86,21 @@ class MySqlUserManager extends UserManagerBase
             ->addRule(new ValidationRule(preg_match($passwordRegex, $password), "Password does not match requirements:\n•At least 8 characters\n•At most 27 characters\n•Must contain at least 1 uppercase letter\n•Must contain at least 1 lowercase letter\n•Must contain at least 1 digit\n•Must contain at least 1 special symbol\n•Must not contain simple words or repeating symbols"))
             ->build();
 
-        if ($errorMessage = $validator->validateSoft()) {
-            include "ErrorToast.php";
-            return;
-        }
+        $validator->validateHard();
         #endregion
 
         #region Registering user
-        $query = "SELECT Id from Roles WHERE Name = ?";
-        $response = MySqlUtils::prepareAndGetResult($this->context, $query, 's', "User");
+        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+        $user = new User(id: null, login: $login, hashedPassword: $hashedPassword, email: $email, roleName: $roleName, discount: $discount, avatar: $avatar);
+
+        $query = "SELECT Id FROM Roles WHERE Name = ?";
+        $response = MySqlUtils::prepareAndGetResult($this->context, $query, 's', $roleName);
         $roleId = $response->fetch_assoc()['Id'];
         $response->free_result();
 
-        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-        $user = new User(id: null, login: $login, hashedPassword: $hashedPassword, email: $email, roleId: $roleId);
-
-        $query = "INSERT INTO Users (Login, HashedPassword, Email, RoleId) VALUES (?, ?, ?, ?)";
-        MySqlUtils::prepareAndExecute($this->context, $query, 'sssi', $user->login, $user->hashedPassword, $user->email, $user->roleId);
+        $query = "INSERT INTO Users (Login, HashedPassword, Email, RoleId, Discount, Avatar) VALUES (?, ?, ?, ?, ?, ?)";
+        MySqlUtils::prepareAndExecute($this->context, $query, 'sssids', $user->login, $user->hashedPassword, $user->email, $roleId, $user->discount, $user->avatar);
         #endregion
-
-        $this->signInUser($user->login);
     }
 
     /**
@@ -144,5 +164,6 @@ class MySqlUserManager extends UserManagerBase
 
         return $this->getUser($username);
     }
+
 
 }

@@ -3,6 +3,7 @@
 namespace Pages;
 use DependencyContainer;
 use Exceptions\LoginAlreadyTakenException;
+use Exceptions\ValueInvalidationException;
 use Models\ValidationRule;
 use Services\UserManagerBase;
 use Services\ValidatorBuilder;
@@ -36,9 +37,13 @@ if (isset($_POST['submit'])) {
     } else {
         try {
             $component->userManager->signUpUser($login, $password, $email);
+            $component->userManager->signInUser($login);
             Router::redirectToLocalPageByKey(ROUTE_Tours);
         } catch (LoginAlreadyTakenException $exception) {
             $errorMessage = "Login already taken!";
+            include "ErrorToast.php";
+        } catch (ValueInvalidationException $exception) {
+            $errorMessage = $exception->getMessage();
             include "ErrorToast.php";
         }
     }
