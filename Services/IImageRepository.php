@@ -3,6 +3,7 @@
 namespace Services;
 
 use Models\Entities\Image;
+use Models\ImageDto;
 
 interface IImageRepository
 {
@@ -13,7 +14,7 @@ interface IImageRepository
 
     public function get(int $id): Image;
 
-    public function add(Image $image): void;
+    public function add(ImageDto $uploadedImage): void;
 
     public function delete(int $id): void;
 }
