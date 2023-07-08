@@ -28,13 +28,14 @@ if (isset($_POST['submit'])) {
     $password = $_POST['password'];
 
     try {
-        $component->userManager->verifyAndSignInUser($username, $password);
-        Router::redirectToLocalPageByKey(ROUTE_Tours);
+        if ($component->userManager->verifyAndSignInUser($username, $password)) {
+            Router::redirectToLocalPageByKey(ROUTE_Tours);
+        } else {
+            $errorMessage = "Invalid username or password.";
+            include "ErrorToast.php";
+        }
     } catch (UserNotFoundException $exception) {
         $errorMessage = "User with this username does not exist.";
-        include "ErrorToast.php";
-    } catch (InvalidCredentialsException $exception) {
-        $errorMessage = "Invalid username or password.";
         include "ErrorToast.php";
     }
 }
