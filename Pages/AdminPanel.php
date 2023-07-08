@@ -3,9 +3,12 @@
 namespace Pages;
 
 use DependencyContainer;
+use Exceptions\LoginAlreadyTakenException;
+use Exceptions\ValueInvalidationException;
 use Models\Entities\City;
 use Models\Entities\Country;
 use Models\Entities\Hotel;
+use Models\ImageDto;
 use Services\ICityRepository;
 use Services\ICountryRepository;
 use Services\IHotelRepository;
@@ -35,21 +38,21 @@ if (!$component->roleManager->isUserInRole($component->userManager->getCurrentUs
 if (isset($_POST['deleteCountry'])) {
     if (isset($_POST['countries'])) {
         $countries = $_POST['countries'];
-        foreach ($countries as $countryId) {
-            $component->countryRepository->delete($countryId);
+        foreach ($countries as $country) {
+            $component->countryRepository->delete($country);
         }
     } else {
         $errorMessage = "Select at least one country.";
         include "ErrorToast.php";
     }
 
-    Router::redirectToLocalPageByKey('admin');
+    Router::redirectToLocalPageByKey(ROUTE_Admin);
 }
 else if (isset($_POST['addCountry'])) {
     $country = Country::parseFromAssoc($_POST);
     $component->countryRepository->add($country);
 
-    Router::redirectToLocalPageByKey('admin');
+    Router::redirectToLocalPageByKey(ROUTE_Admin);
 }
 else if (isset($_POST['deleteCity'])) {
     if (isset($_POST['cities'])) {
@@ -58,7 +61,7 @@ else if (isset($_POST['deleteCity'])) {
             $component->cityRepository->delete($cityId);
         }
 
-        Router::redirectToLocalPageByKey('admin');
+        Router::redirectToLocalPageByKey(ROUTE_Admin);
     } else {
         $errorMessage = "Select at least one city.";
         include "ErrorToast.php";
@@ -68,7 +71,7 @@ else if (isset($_POST['addCity'])) {
     $city = City::parseFromAssoc($_POST);
     $component->cityRepository->add($city);
 
-    Router::redirectToLocalPageByKey('admin');
+    Router::redirectToLocalPageByKey(ROUTE_Admin);
 }
 else if (isset($_POST['deleteHotel'])) {
     if (isset($_POST['hotels'])) {
@@ -77,7 +80,7 @@ else if (isset($_POST['deleteHotel'])) {
             $component->hotelRepository->delete($hotelId);
         }
 
-        Router::redirectToLocalPageByKey('admin');
+        Router::redirectToLocalPageByKey(ROUTE_Admin);
     } else {
         $errorMessage = "Select at least one hotel.";
         include "ErrorToast.php";
@@ -86,7 +89,61 @@ else if (isset($_POST['deleteHotel'])) {
 else if (isset($_POST['addHotel'])) {
     $hotel = Hotel::parseFromAssoc($_POST);
     $component->hotelRepository->add($hotel);
-    Router::redirectToLocalPageByKey('admin');
+    Router::redirectToLocalPageByKey(ROUTE_Admin);
+}
+else if (isset($_POST['addUser'])) {
+    $avatarBytes = null;
+    if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+        $avatarFileName = $_FILES['avatar']['tmp_name'];
+        $avatarBytes = file_get_contents($avatarFileName);
+    }
+
+    try {
+        $component->userManager->signUpUser($_POST['login'], $_POST['password'], $_POST['email'], $_POST['roleName'], $_POST['discount'], $avatarBytes);
+    } catch (LoginAlreadyTakenException $exception) {
+        $errorMessage = "Login already taken!";
+        include "ErrorToast.php";
+    } catch (ValueInvalidationException $exception) {
+        $errorMessage = $exception->getMessage();
+        include "ErrorToast.php";
+    }
+
+    Router::redirectToLocalPageByKey(ROUTE_Admin);
+}
+else if (isset($_POST['deleteImage'])) {
+    if (isset($_POST['images'])) {
+        $images = $_POST['images'];
+        foreach ($images as $imageId) {
+            $component->imageRepository->delete($imageId);
+        }
+
+        Router::redirectToLocalPageByKey(ROUTE_Admin);
+    } else {
+        $errorMessage = "Select at least one image.";
+        include "ErrorToast.php";
+    }
+}
+else if (isset($_POST['addImage'])) {
+    if (isset($_FILES['images'])) {
+        $hotelName = $_POST['hotelName'];
+        foreach ($_FILES['images']['name'] as $key=>$_) {
+            if ($_FILES['images']['error'][$key] != 0)
+                continue;
+
+            $uploadedImage = new ImageDto();
+            $uploadedImage->hotelName = $hotelName;
+
+            $uploadedImage->uploadedFile = [
+                'tmp_name' => $_FILES['images']['tmp_name'][$key]
+            ];
+
+            $component->imageRepository->add($uploadedImage);
+            Router::redirectToLocalPageByKey(ROUTE_Admin);
+        }
+    } else {
+        $errorMessage = "You should upload at least one image.";
+        include "ErrorToast.php";
+    }
 }
 
 ?>
@@ -94,7 +151,7 @@ else if (isset($_POST['addHotel'])) {
 <link rel="stylesheet" type="text/css" href="/TravelAgency/wwwroot/stylesheets/admin.css"/>
 <div id="body" class="container my-5">
     <h1 class="text-center mb-4">Admin Panel</h1>
-    <div class="row row-cols-1 row-cols-md-3 g-4">
+    <div class="row row-cols-1 row-cols-md-2 g-4">
         <!-- Countries Section -->
         <div class="col">
             <div class="card h-100">
@@ -111,11 +168,10 @@ else if (isset($_POST['addHotel'])) {
                             </tr>
                             </thead>
                             <tbody>
-                            <!-- PHP code to loop through countries and display them in the table -->
                             <?php
                             $countries = $component->countryRepository->getAll();
-                            foreach ($countries as $countryId) {
-                                echo "<tr><td>$countryId->id</td><td>$countryId->name</td><td><input type='checkbox' class='form-check' name='countries[]' value='$countryId->id'/></td></tr>";
+                            foreach ($countries as $country) {
+                                echo "<tr><td>$country->id</td><td>$country->name</td><td><input type='checkbox' class='form-check' name='countries[]' value='$country->id'/></td></tr>";
                             }
                             ?>
                             </tbody>
@@ -155,7 +211,6 @@ else if (isset($_POST['addHotel'])) {
                             </tr>
                             </thead>
                             <tbody>
-                            <!-- PHP code to loop through countries and display them in the table -->
                             <?php
                             $cities = $component->cityRepository->getAll();
                             foreach ($cities as $city) {
@@ -180,8 +235,8 @@ else if (isset($_POST['addHotel'])) {
                             <select class="form-select" name="countryName" id="countryOfCity" required>
                                 <option value="" disabled selected>-- Choose a country --</option>
                                 <?php
-                                foreach ($countries as $countryId) {
-                                    echo "<option value='$countryId->name'>$countryId->name</option>";
+                                foreach ($countries as $country) {
+                                    echo "<option value='$country->name'>$country->name</option>";
                                 }
                                 ?>
                             </select>
@@ -213,7 +268,6 @@ else if (isset($_POST['addHotel'])) {
                             </tr>
                             </thead>
                             <tbody>
-                            <!-- PHP code to loop through countries and display them in the table -->
                             <?php
                             $hotels = $component->hotelRepository->getAll();
                             foreach ($hotels as $hotel) {
@@ -230,16 +284,16 @@ else if (isset($_POST['addHotel'])) {
                     <!-- Add Form -->
                     <form action="" method="post">
                         <div class="mb-3">
-                            <label for="countryName" class="form-label">Name</label>
-                            <input type="text" class="form-control" id="countryName" name="name" required/>
+                            <label for="hotelName" class="form-label">Name</label>
+                            <input type="text" class="form-control" id="hotelName" name="name" required/>
                         </div>
                         <div class="mb-3">
                             <label for="countryOfHotel" class="form-label">Country</label>
                             <select class="form-select" name="countryName" id="countryOfHotel" required>
                                 <option value="" disabled selected>-- Choose a country --</option>
                                 <?php
-                                foreach ($countries as $countryId) {
-                                    echo "<option value='$countryId->name'>$countryId->name</option>";
+                                foreach ($countries as $country) {
+                                    echo "<option value='$country->name'>$country->name</option>";
                                 }
                                 ?>
                             </select>
@@ -269,6 +323,132 @@ else if (isset($_POST['addHotel'])) {
                             <textarea class="form-control" id="hotelInfo" name="info"></textarea>
                         </div>
                         <button type="submit" name="addHotel" class="btn btn-primary">Add Hotel
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <!-- Users Section -->
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-header">Users</div>
+                <div class="card-body">
+                    <!-- Table -->
+                    <div class="table-container">
+                        <table class="table table-bordered table-hover mb-3">
+                            <thead>
+                            <tr>
+                                <th>Id</th>
+                                <th>Login</th>
+                                <th>Role Name</th>
+                                <th>Discount</th>
+                                <th>Avatar</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <?php
+                            $users = $component->userManager->getUsers();
+                            foreach ($users as $user) {
+                                $avatar = null;
+                                if ($user->avatar)
+                                    $avatar = base64_encode($user->avatar);
+
+                                echo "<tr><td>$user->id</td><td>$user->login</td><td>$user->roleName</td><td>$user->discount</td><td>" . ($avatar ? "<img height='100px' src='data:image/png;base64,$avatar' alt='Avatar'/>" : "<div>No avatar</div>") . "</tr>";
+                            }
+                            ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Add Form -->
+                    <form action="" method="post" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="login" class="form-label">Login</label>
+                            <input type="text" class="form-control" id="login" name="login" required/>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="password" name="password" required/>
+                        </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" required/>
+                        </div>
+                        <div class="mb-3">
+                            <label for="roles" class="form-label">Roles</label>
+                            <select class="form-select" name="roleName" id="roles" required>
+                                <option value="" disabled selected>-- Choose a role --</option>
+                            <?php
+                            $roles = [ROLE_User, ROLE_Admin];
+                            foreach ($roles as $roleName) {
+                                echo "<option value='$roleName'>$roleName</option>";
+                            }
+                            ?>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="discount" class="form-label">Discount</label>
+                            <input type="number" value="0.0" class="form-control" id="discount" name="discount" required/>
+                        </div>
+                        <div class="mb-3">
+                            <label for="avatar" class="form-label">Avatar</label>
+                            <input type="file" class="form-control" id="avatar" name="avatar" />
+                        </div>
+                        <button type="submit" name="addUser" class="btn btn-primary">Add
+                            User
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <!-- Images Section -->
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-header">Images</div>
+                <div class="card-body">
+                    <!-- Table -->
+                    <form method="post" class="table-container" enctype="multipart/form-data">
+                        <table class="table table-bordered table-hover mb-3">
+                            <thead>
+                            <tr>
+                                <th>Id</th>
+                                <th>Hotel</th>
+                                <th>Image</th>
+                                <th>Select</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <?php
+                            $images = $component->imageRepository->getAll();
+                            foreach ($images as $image) {
+                                echo "<tr><td>$image->id</td><td>$image->hotelName</td><td><img height='100px' src='$image->imagePath' alt='hotel image'/></td><td><input type='checkbox' class='form-check' name='images[]' value='$image->id'/></td></tr>";
+                            }
+                            ?>
+                            </tbody>
+                        </table>
+                        <!-- Delete Button -->
+                        <button type="submit" name="deleteImage" class="btn btn-danger my-3">
+                            Delete Selected
+                        </button>
+                    </form>
+                    <!-- Add Form -->
+                    <form action="" method="post" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="hotelOfImage" class="form-label">Hotel</label>
+                            <select class="form-select" name="hotelName" id="hotelOfImage" required>
+                                <option value="" disabled selected>-- Choose a hotel --</option>
+                                <?php
+                                foreach ($hotels as $hotel) {
+                                    echo "<option value='$hotel->name'>$hotel->name</option>";
+                                }
+                                ?>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="images" class="form-label">Image</label>
+                            <input type="file" class="form-control" id="images" name="images[]" multiple required/>
+                        </div>
+                        <button type="submit" name="addImage" class="btn btn-primary">Add
+                            Image
                         </button>
                     </form>
                 </div>
